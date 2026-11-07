@@ -1,0 +1,47 @@
+SQL pass: 6,400,000 rows, 43 feature columns
+spread                       BIT-IDENTICAL  exact=6400000/6400000 nan_mismatch=0 max_abs_diff=0.000e+00
+microprice                   BIT-IDENTICAL  exact=6400000/6400000 nan_mismatch=0 max_abs_diff=0.000e+00
+bid_depth_total              BIT-IDENTICAL  exact=6400000/6400000 nan_mismatch=0 max_abs_diff=0.000e+00
+ask_depth_total              BIT-IDENTICAL  exact=6400000/6400000 nan_mismatch=0 max_abs_diff=0.000e+00
+depth_imbalance              BIT-IDENTICAL  exact=6400000/6400000 nan_mismatch=0 max_abs_diff=0.000e+00
+ofi_l1                       BIT-IDENTICAL  exact=6399920/6399920 nan_mismatch=0 max_abs_diff=0.000e+00
+ofi_l2                       BIT-IDENTICAL  exact=6399920/6399920 nan_mismatch=0 max_abs_diff=0.000e+00
+ofi_l3                       BIT-IDENTICAL  exact=6399920/6399920 nan_mismatch=0 max_abs_diff=0.000e+00
+ofi_l4                       BIT-IDENTICAL  exact=6399920/6399920 nan_mismatch=0 max_abs_diff=0.000e+00
+ofi_l5                       BIT-IDENTICAL  exact=6399920/6399920 nan_mismatch=0 max_abs_diff=0.000e+00
+ofi_agg5                     BIT-IDENTICAL  exact=6399920/6399920 nan_mismatch=0 max_abs_diff=0.000e+00
+qi_l1                        BIT-IDENTICAL  exact=6400000/6400000 nan_mismatch=0 max_abs_diff=0.000e+00
+qi_l2                        BIT-IDENTICAL  exact=6399840/6399840 nan_mismatch=0 max_abs_diff=0.000e+00
+qi_l3                        BIT-IDENTICAL  exact=6399680/6399680 nan_mismatch=0 max_abs_diff=0.000e+00
+qi_l4                        BIT-IDENTICAL  exact=6399520/6399520 nan_mismatch=0 max_abs_diff=0.000e+00
+qi_l5                        BIT-IDENTICAL  exact=6399360/6399360 nan_mismatch=0 max_abs_diff=0.000e+00
+qi_agg5                      BIT-IDENTICAL  exact=6399360/6399360 nan_mismatch=0 max_abs_diff=0.000e+00
+bid_sz_1                     BIT-IDENTICAL  exact=6400000/6400000 nan_mismatch=0 max_abs_diff=0.000e+00
+ask_sz_1                     BIT-IDENTICAL  exact=6400000/6400000 nan_mismatch=0 max_abs_diff=0.000e+00
+msg_count_add_w20            BIT-IDENTICAL  exact=6400000/6400000 nan_mismatch=0 max_abs_diff=0.000e+00
+msg_count_add_w50            BIT-IDENTICAL  exact=6400000/6400000 nan_mismatch=0 max_abs_diff=0.000e+00
+msg_count_add_w100           BIT-IDENTICAL  exact=6400000/6400000 nan_mismatch=0 max_abs_diff=0.000e+00
+msg_count_cancel_w20         BIT-IDENTICAL  exact=6400000/6400000 nan_mismatch=0 max_abs_diff=0.000e+00
+msg_count_cancel_w50         BIT-IDENTICAL  exact=6400000/6400000 nan_mismatch=0 max_abs_diff=0.000e+00
+msg_count_cancel_w100        BIT-IDENTICAL  exact=6400000/6400000 nan_mismatch=0 max_abs_diff=0.000e+00
+msg_count_execute_w20        BIT-IDENTICAL  exact=6400000/6400000 nan_mismatch=0 max_abs_diff=0.000e+00
+msg_count_execute_w50        BIT-IDENTICAL  exact=6400000/6400000 nan_mismatch=0 max_abs_diff=0.000e+00
+msg_count_execute_w100       BIT-IDENTICAL  exact=6400000/6400000 nan_mismatch=0 max_abs_diff=0.000e+00
+msg_count_delete_w20         BIT-IDENTICAL  exact=6400000/6400000 nan_mismatch=0 max_abs_diff=0.000e+00
+msg_count_delete_w50         BIT-IDENTICAL  exact=6400000/6400000 nan_mismatch=0 max_abs_diff=0.000e+00
+msg_count_delete_w100        BIT-IDENTICAL  exact=6400000/6400000 nan_mismatch=0 max_abs_diff=0.000e+00
+realized_vol_w20             close          exact=6386970/6399840 nan_mismatch=0 max_abs_diff=9.095e-13
+realized_vol_w50             close          exact=6380903/6399840 nan_mismatch=0 max_abs_diff=9.095e-13
+realized_vol_w100            close          exact=6339188/6399840 nan_mismatch=0 max_abs_diff=9.095e-13
+trade_flow_imb_w10           BIT-IDENTICAL  exact=6400000/6400000 nan_mismatch=0 max_abs_diff=0.000e+00
+trade_flow_imb_w50           BIT-IDENTICAL  exact=6400000/6400000 nan_mismatch=0 max_abs_diff=0.000e+00
+trade_flow_imb_w100          BIT-IDENTICAL  exact=6400000/6400000 nan_mismatch=0 max_abs_diff=0.000e+00
+gap_mean_w20                 close          exact=4932224/6399920 nan_mismatch=0 max_abs_diff=5.551e-17
+gap_mean_w100                close          exact=7272/6399920 nan_mismatch=0 max_abs_diff=1.249e-16
+lag_ret_1                    BIT-IDENTICAL  exact=6399920/6399920 nan_mismatch=0 max_abs_diff=0.000e+00
+lag_ret_2                    BIT-IDENTICAL  exact=6399840/6399840 nan_mismatch=0 max_abs_diff=0.000e+00
+lag_ret_3                    BIT-IDENTICAL  exact=6399760/6399760 nan_mismatch=0 max_abs_diff=0.000e+00
+cum_net_flow                 BIT-IDENTICAL  exact=6400000/6400000 nan_mismatch=0 max_abs_diff=0.000e+00
+
+38 / 43 columns bit-identical to the SQL pass
+full report written to docs/incremental_vs_sql_report.json

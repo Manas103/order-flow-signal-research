@@ -1,0 +1,437 @@
+{
+  "n_rows": 6400000,
+  "n_columns": 43,
+  "n_bit_identical_columns": 38,
+  "columns": [
+    {
+      "column": "spread",
+      "n_rows": 6400000,
+      "n_both_nan": 0,
+      "n_nan_mismatch": 0,
+      "n_comparable": 6400000,
+      "n_exact_match": 6400000,
+      "bit_identical": true,
+      "max_abs_diff": 0.0
+    },
+    {
+      "column": "microprice",
+      "n_rows": 6400000,
+      "n_both_nan": 0,
+      "n_nan_mismatch": 0,
+      "n_comparable": 6400000,
+      "n_exact_match": 6400000,
+      "bit_identical": true,
+      "max_abs_diff": 0.0
+    },
+    {
+      "column": "bid_depth_total",
+      "n_rows": 6400000,
+      "n_both_nan": 0,
+      "n_nan_mismatch": 0,
+      "n_comparable": 6400000,
+      "n_exact_match": 6400000,
+      "bit_identical": true,
+      "max_abs_diff": 0.0
+    },
+    {
+      "column": "ask_depth_total",
+      "n_rows": 6400000,
+      "n_both_nan": 0,
+      "n_nan_mismatch": 0,
+      "n_comparable": 6400000,
+      "n_exact_match": 6400000,
+      "bit_identical": true,
+      "max_abs_diff": 0.0
+    },
+    {
+      "column": "depth_imbalance",
+      "n_rows": 6400000,
+      "n_both_nan": 0,
+      "n_nan_mismatch": 0,
+      "n_comparable": 6400000,
+      "n_exact_match": 6400000,
+      "bit_identical": true,
+      "max_abs_diff": 0.0
+    },
+    {
+      "column": "ofi_l1",
+      "n_rows": 6400000,
+      "n_both_nan": 80,
+      "n_nan_mismatch": 0,
+      "n_comparable": 6399920,
+      "n_exact_match": 6399920,
+      "bit_identical": true,
+      "max_abs_diff": 0.0
+    },
+    {
+      "column": "ofi_l2",
+      "n_rows": 6400000,
+      "n_both_nan": 80,
+      "n_nan_mismatch": 0,
+      "n_comparable": 6399920,
+      "n_exact_match": 6399920,
+      "bit_identical": true,
+      "max_abs_diff": 0.0
+    },
+    {
+      "column": "ofi_l3",
+      "n_rows": 6400000,
+      "n_both_nan": 80,
+      "n_nan_mismatch": 0,
+      "n_comparable": 6399920,
+      "n_exact_match": 6399920,
+      "bit_identical": true,
+      "max_abs_diff": 0.0
+    },
+    {
+      "column": "ofi_l4",
+      "n_rows": 6400000,
+      "n_both_nan": 80,
+      "n_nan_mismatch": 0,
+      "n_comparable": 6399920,
+      "n_exact_match": 6399920,
+      "bit_identical": true,
+      "max_abs_diff": 0.0
+    },
+    {
+      "column": "ofi_l5",
+      "n_rows": 6400000,
+      "n_both_nan": 80,
+      "n_nan_mismatch": 0,
+      "n_comparable": 6399920,
+      "n_exact_match": 6399920,
+      "bit_identical": true,
+      "max_abs_diff": 0.0
+    },
+    {
+      "column": "ofi_agg5",
+      "n_rows": 6400000,
+      "n_both_nan": 80,
+      "n_nan_mismatch": 0,
+      "n_comparable": 6399920,
+      "n_exact_match": 6399920,
+      "bit_identical": true,
+      "max_abs_diff": 0.0
+    },
+    {
+      "column": "qi_l1",
+      "n_rows": 6400000,
+      "n_both_nan": 0,
+      "n_nan_mismatch": 0,
+      "n_comparable": 6400000,
+      "n_exact_match": 6400000,
+      "bit_identical": true,
+      "max_abs_diff": 0.0
+    },
+    {
+      "column": "qi_l2",
+      "n_rows": 6400000,
+      "n_both_nan": 160,
+      "n_nan_mismatch": 0,
+      "n_comparable": 6399840,
+      "n_exact_match": 6399840,
+      "bit_identical": true,
+      "max_abs_diff": 0.0
+    },
+    {
+      "column": "qi_l3",
+      "n_rows": 6400000,
+      "n_both_nan": 320,
+      "n_nan_mismatch": 0,
+      "n_comparable": 6399680,
+      "n_exact_match": 6399680,
+      "bit_identical": true,
+      "max_abs_diff": 0.0
+    },
+    {
+      "column": "qi_l4",
+      "n_rows": 6400000,
+      "n_both_nan": 480,
+      "n_nan_mismatch": 0,
+      "n_comparable": 6399520,
+      "n_exact_match": 6399520,
+      "bit_identical": true,
+      "max_abs_diff": 0.0
+    },
+    {
+      "column": "qi_l5",
+      "n_rows": 6400000,
+      "n_both_nan": 640,
+      "n_nan_mismatch": 0,
+      "n_comparable": 6399360,
+      "n_exact_match": 6399360,
+      "bit_identical": true,
+      "max_abs_diff": 0.0
+    },
+    {
+      "column": "qi_agg5",
+      "n_rows": 6400000,
+      "n_both_nan": 640,
+      "n_nan_mismatch": 0,
+      "n_comparable": 6399360,
+      "n_exact_match": 6399360,
+      "bit_identical": true,
+      "max_abs_diff": 0.0
+    },
+    {
+      "column": "bid_sz_1",
+      "n_rows": 6400000,
+      "n_both_nan": 0,
+      "n_nan_mismatch": 0,
+      "n_comparable": 6400000,
+      "n_exact_match": 6400000,
+      "bit_identical": true,
+      "max_abs_diff": 0.0
+    },
+    {
+      "column": "ask_sz_1",
+      "n_rows": 6400000,
+      "n_both_nan": 0,
+      "n_nan_mismatch": 0,
+      "n_comparable": 6400000,
+      "n_exact_match": 6400000,
+      "bit_identical": true,
+      "max_abs_diff": 0.0
+    },
+    {
+      "column": "msg_count_add_w20",
+      "n_rows": 6400000,
+      "n_both_nan": 0,
+      "n_nan_mismatch": 0,
+      "n_comparable": 6400000,
+      "n_exact_match": 6400000,
+      "bit_identical": true,
+      "max_abs_diff": 0.0
+    },
+    {
+      "column": "msg_count_add_w50",
+      "n_rows": 6400000,
+      "n_both_nan": 0,
+      "n_nan_mismatch": 0,
+      "n_comparable": 6400000,
+      "n_exact_match": 6400000,
+      "bit_identical": true,
+      "max_abs_diff": 0.0
+    },
+    {
+      "column": "msg_count_add_w100",
+      "n_rows": 6400000,
+      "n_both_nan": 0,
+      "n_nan_mismatch": 0,
+      "n_comparable": 6400000,
+      "n_exact_match": 6400000,
+      "bit_identical": true,
+      "max_abs_diff": 0.0
+    },
+    {
+      "column": "msg_count_cancel_w20",
+      "n_rows": 6400000,
+      "n_both_nan": 0,
+      "n_nan_mismatch": 0,
+      "n_comparable": 6400000,
+      "n_exact_match": 6400000,
+      "bit_identical": true,
+      "max_abs_diff": 0.0
+    },
+    {
+      "column": "msg_count_cancel_w50",
+      "n_rows": 6400000,
+      "n_both_nan": 0,
+      "n_nan_mismatch": 0,
+      "n_comparable": 6400000,
+      "n_exact_match": 6400000,
+      "bit_identical": true,
+      "max_abs_diff": 0.0
+    },
+    {
+      "column": "msg_count_cancel_w100",
+      "n_rows": 6400000,
+      "n_both_nan": 0,
+      "n_nan_mismatch": 0,
+      "n_comparable": 6400000,
+      "n_exact_match": 6400000,
+      "bit_identical": true,
+      "max_abs_diff": 0.0
+    },
+    {
+      "column": "msg_count_execute_w20",
+      "n_rows": 6400000,
+      "n_both_nan": 0,
+      "n_nan_mismatch": 0,
+      "n_comparable": 6400000,
+      "n_exact_match": 6400000,
+      "bit_identical": true,
+      "max_abs_diff": 0.0
+    },
+    {
+      "column": "msg_count_execute_w50",
+      "n_rows": 6400000,
+      "n_both_nan": 0,
+      "n_nan_mismatch": 0,
+      "n_comparable": 6400000,
+      "n_exact_match": 6400000,
+      "bit_identical": true,
+      "max_abs_diff": 0.0
+    },
+    {
+      "column": "msg_count_execute_w100",
+      "n_rows": 6400000,
+      "n_both_nan": 0,
+      "n_nan_mismatch": 0,
+      "n_comparable": 6400000,
+      "n_exact_match": 6400000,
+      "bit_identical": true,
+      "max_abs_diff": 0.0
+    },
+    {
+      "column": "msg_count_delete_w20",
+      "n_rows": 6400000,
+      "n_both_nan": 0,
+      "n_nan_mismatch": 0,
+      "n_comparable": 6400000,
+      "n_exact_match": 6400000,
+      "bit_identical": true,
+      "max_abs_diff": 0.0
+    },
+    {
+      "column": "msg_count_delete_w50",
+      "n_rows": 6400000,
+      "n_both_nan": 0,
+      "n_nan_mismatch": 0,
+      "n_comparable": 6400000,
+      "n_exact_match": 6400000,
+      "bit_identical": true,
+      "max_abs_diff": 0.0
+    },
+    {
+      "column": "msg_count_delete_w100",
+      "n_rows": 6400000,
+      "n_both_nan": 0,
+      "n_nan_mismatch": 0,
+      "n_comparable": 6400000,
+      "n_exact_match": 6400000,
+      "bit_identical": true,
+      "max_abs_diff": 0.0
+    },
+    {
+      "column": "realized_vol_w20",
+      "n_rows": 6400000,
+      "n_both_nan": 160,
+      "n_nan_mismatch": 0,
+      "n_comparable": 6399840,
+      "n_exact_match": 6386970,
+      "bit_identical": false,
+      "max_abs_diff": 9.094947017729282e-13
+    },
+    {
+      "column": "realized_vol_w50",
+      "n_rows": 6400000,
+      "n_both_nan": 160,
+      "n_nan_mismatch": 0,
+      "n_comparable": 6399840,
+      "n_exact_match": 6380903,
+      "bit_identical": false,
+      "max_abs_diff": 9.094947017729282e-13
+    },
+    {
+      "column": "realized_vol_w100",
+      "n_rows": 6400000,
+      "n_both_nan": 160,
+      "n_nan_mismatch": 0,
+      "n_comparable": 6399840,
+      "n_exact_match": 6339188,
+      "bit_identical": false,
+      "max_abs_diff": 9.094947017729282e-13
+    },
+    {
+      "column": "trade_flow_imb_w10",
+      "n_rows": 6400000,
+      "n_both_nan": 0,
+      "n_nan_mismatch": 0,
+      "n_comparable": 6400000,
+      "n_exact_match": 6400000,
+      "bit_identical": true,
+      "max_abs_diff": 0.0
+    },
+    {
+      "column": "trade_flow_imb_w50",
+      "n_rows": 6400000,
+      "n_both_nan": 0,
+      "n_nan_mismatch": 0,
+      "n_comparable": 6400000,
+      "n_exact_match": 6400000,
+      "bit_identical": true,
+      "max_abs_diff": 0.0
+    },
+    {
+      "column": "trade_flow_imb_w100",
+      "n_rows": 6400000,
+      "n_both_nan": 0,
+      "n_nan_mismatch": 0,
+      "n_comparable": 6400000,
+      "n_exact_match": 6400000,
+      "bit_identical": true,
+      "max_abs_diff": 0.0
+    },
+    {
+      "column": "gap_mean_w20",
+      "n_rows": 6400000,
+      "n_both_nan": 80,
+      "n_nan_mismatch": 0,
+      "n_comparable": 6399920,
+      "n_exact_match": 4932224,
+      "bit_identical": false,
+      "max_abs_diff": 5.551115123125783e-17
+    },
+    {
+      "column": "gap_mean_w100",
+      "n_rows": 6400000,
+      "n_both_nan": 80,
+      "n_nan_mismatch": 0,
+      "n_comparable": 6399920,
+      "n_exact_match": 7272,
+      "bit_identical": false,
+      "max_abs_diff": 1.249000902703301e-16
+    },
+    {
+      "column": "lag_ret_1",
+      "n_rows": 6400000,
+      "n_both_nan": 80,
+      "n_nan_mismatch": 0,
+      "n_comparable": 6399920,
+      "n_exact_match": 6399920,
+      "bit_identical": true,
+      "max_abs_diff": 0.0
+    },
+    {
+      "column": "lag_ret_2",
+      "n_rows": 6400000,
+      "n_both_nan": 160,
+      "n_nan_mismatch": 0,
+      "n_comparable": 6399840,
+      "n_exact_match": 6399840,
+      "bit_identical": true,
+      "max_abs_diff": 0.0
+    },
+    {
+      "column": "lag_ret_3",
+      "n_rows": 6400000,
+      "n_both_nan": 240,
+      "n_nan_mismatch": 0,
+      "n_comparable": 6399760,
+      "n_exact_match": 6399760,
+      "bit_identical": true,
+      "max_abs_diff": 0.0
+    },
+    {
+      "column": "cum_net_flow",
+      "n_rows": 6400000,
+      "n_both_nan": 0,
+      "n_nan_mismatch": 0,
+      "n_comparable": 6400000,
+      "n_exact_match": 6400000,
+      "bit_identical": true,
+      "max_abs_diff": 0.0
+    }
+  ]
+}

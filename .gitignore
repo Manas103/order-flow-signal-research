@@ -9,3 +9,9 @@ __pycache__/
 .venv/
 venv/
 *.egg-info/
+
+# C++ incremental-feature engine (cpp/)
+cpp/build/
+cpp/build-asan/
+*.o
+*.obj

@@ -1,0 +1,35 @@
+[
+  {
+    "pull_quantile": 0.1,
+    "lag_signal_threshold": -313.0,
+    "n_fills_total": 898230,
+    "n_fills_pulled": 90289,
+    "n_fills_kept": 807941,
+    "baseline_mean_adverse_selection": 0.008491738159438716,
+    "signal_aware_mean_adverse_selection": 0.008146654636055444,
+    "pct_reduction": 4.063756052107019,
+    "mean_adverse_selection_of_pulled_fills": 0.011579740161928073
+  },
+  {
+    "pull_quantile": 0.2,
+    "lag_signal_threshold": -235.0,
+    "n_fills_total": 898230,
+    "n_fills_pulled": 180627,
+    "n_fills_kept": 717603,
+    "baseline_mean_adverse_selection": 0.008491738159438716,
+    "signal_aware_mean_adverse_selection": 0.007881795365961402,
+    "pct_reduction": 7.182779096872549,
+    "mean_adverse_selection_of_pulled_fills": 0.010914999750862294
+  },
+  {
+    "pull_quantile": 0.25,
+    "lag_signal_threshold": -209.0,
+    "n_fills_total": 898230,
+    "n_fills_pulled": 224694,
+    "n_fills_kept": 673536,
+    "baseline_mean_adverse_selection": 0.008491738159438716,
+    "signal_aware_mean_adverse_selection": 0.007664029836564044,
+    "pct_reduction": 9.747219089117342,
+    "mean_adverse_selection_of_pulled_fills": 0.010972895990030708
+  }
+]

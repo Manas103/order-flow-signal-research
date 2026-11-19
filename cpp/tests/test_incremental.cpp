@@ -150,10 +150,42 @@ static void qi_agg5_null_propagation() {
     check(std::isnan(f[kQiAgg5]), "qi_agg5 propagates NaN rather than skipping the one NULL level");
 }
 
+// Regression for the one-sided-book bug: an empty touch side used to give a
+// mid of half the real price. Now mid, spread and microprice are NaN there,
+// the NaN mid_diff rows occupy their slots in the ROWS frame (so the window
+// still evicts the right row later), and the moments skip them like SQL NULL.
+static void one_sided_book_is_null_and_keeps_frame_alignment() {
+    using namespace incfeat;
+    IncrementalFeatureEngine eng;
+    // row 0: empty ask (seeding), row 1..: two-sided, mid moves 100 -> 101 -> 103
+    FeatureRow f0 = eng.update(make_event(0, 0, 0, 0, 0.0, 1, 1, 99.0, 10.0, 0.0, 0.0));
+    check(std::isnan(f0[kSpread]) && std::isnan(f0[kMicroprice]), "one-sided row: spread and microprice NaN");
+    FeatureRow f1 = eng.update(make_event(1, 0, 0, 1, 1.0, 1, 1, 99.0, 10.0, 101.0, 10.0));
+    check(std::isnan(f1[kLagRet1]), "first two-sided row: lag_ret_1 NaN (previous mid is NULL)");
+    check(std::isnan(f1[kRealizedVolW20]), "vol NaN with no defined mid_diff yet");
+    FeatureRow f2 = eng.update(make_event(2, 0, 0, 1, 2.0, 1, 1, 100.0, 10.0, 102.0, 10.0));
+    check_close(f2[kLagRet1], 1.0, 1e-12, "lag_ret_1 = 101 - 100");
+    check(std::isnan(f2[kLagRet2]), "lag_ret_2 reaches the one-sided row: NaN");
+    FeatureRow f3 = eng.update(make_event(3, 0, 0, 1, 3.0, 1, 1, 102.0, 10.0, 104.0, 10.0));
+    check_close(f3[kRealizedVolW20], std::sqrt(0.5), 1e-12, "vol over mid_diff {1, 2} skips the two NULL rows");
+
+    // Frame alignment: a window of 2 rows (w=1). NaN must evict as a row.
+    SlidingMoment m;
+    m.reset(1);
+    m.push(kNaN);
+    m.push(4.0);
+    check(m.n() == 1 && m.sum() == 4.0, "NaN occupies a slot but not the sum");
+    m.push(6.0);  // evicts the NaN row, frame = {4, 6}
+    check(m.n() == 2 && m.sum() == 10.0, "evicting a NaN row leaves the sum alone");
+    m.push(kNaN);  // evicts 4, frame = {6, NULL}
+    check(m.n() == 1 && m.sum() == 6.0, "pushing NaN evicts the oldest real value");
+}
+
 int main() {
     hand_worked_small_partition();
     sliding_window_eviction();
     qi_agg5_null_propagation();
+    one_sided_book_is_null_and_keeps_frame_alignment();
     std::printf("\n%d passed, %d failed\n", g_pass, g_fail);
     return g_fail == 0 ? 0 : 1;
 }

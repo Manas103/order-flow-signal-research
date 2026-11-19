@@ -1,2 +1,2 @@
-....................                                                     [100%]
-20 passed in 12.21s
+$ python -m pytest tests -q
+31 passed in 13.30s

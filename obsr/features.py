@@ -76,9 +76,14 @@ def build_feature_sql(messages_relation: str) -> str:
     return f"""
 WITH base AS (
   SELECT *,
-    (bid_px_1 + ask_px_1) / 2.0 AS mid,
-    (ask_px_1 - bid_px_1) AS spread,
-    CASE WHEN (bid_sz_1 + ask_sz_1) = 0 THEN NULL
+    -- A one-sided book (either touch empty, as while the book is being seeded at
+    -- the start of every session, or briefly after a sweep) has no mid. Its empty
+    -- side's price is stored as 0, so without this guard mid would be half the real
+    -- price and every label looking forward onto that row would be a fake move of
+    -- thousands of ticks (see DESIGN.md, "A one-sided book was hiding inside every label").
+    CASE WHEN bid_sz_1 = 0 OR ask_sz_1 = 0 THEN NULL ELSE (bid_px_1 + ask_px_1) / 2.0 END AS mid,
+    CASE WHEN bid_sz_1 = 0 OR ask_sz_1 = 0 THEN NULL ELSE (ask_px_1 - bid_px_1) END AS spread,
+    CASE WHEN bid_sz_1 = 0 OR ask_sz_1 = 0 THEN NULL
          ELSE (bid_px_1 * ask_sz_1 + ask_px_1 * bid_sz_1) / (bid_sz_1 + ask_sz_1) END AS microprice,
     (bid_sz_1 + bid_sz_2 + bid_sz_3 + bid_sz_4 + bid_sz_5) AS bid_depth_total,
     (ask_sz_1 + ask_sz_2 + ask_sz_3 + ask_sz_4 + ask_sz_5) AS ask_depth_total,

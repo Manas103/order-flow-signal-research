@@ -6,20 +6,20 @@
     {
       "column": "spread",
       "n_rows": 6400000,
-      "n_both_nan": 0,
+      "n_both_nan": 109,
       "n_nan_mismatch": 0,
-      "n_comparable": 6400000,
-      "n_exact_match": 6400000,
+      "n_comparable": 6399891,
+      "n_exact_match": 6399891,
       "bit_identical": true,
       "max_abs_diff": 0.0
     },
     {
       "column": "microprice",
       "n_rows": 6400000,
-      "n_both_nan": 0,
+      "n_both_nan": 109,
       "n_nan_mismatch": 0,
-      "n_comparable": 6400000,
-      "n_exact_match": 6400000,
+      "n_comparable": 6399891,
+      "n_exact_match": 6399891,
       "bit_identical": true,
       "max_abs_diff": 0.0
     },
@@ -316,32 +316,32 @@
     {
       "column": "realized_vol_w20",
       "n_rows": 6400000,
-      "n_both_nan": 160,
+      "n_both_nan": 240,
       "n_nan_mismatch": 0,
-      "n_comparable": 6399840,
-      "n_exact_match": 6386970,
+      "n_comparable": 6399760,
+      "n_exact_match": 6387632,
       "bit_identical": false,
-      "max_abs_diff": 9.094947017729282e-13
+      "max_abs_diff": 1.1102230246251565e-16
     },
     {
       "column": "realized_vol_w50",
       "n_rows": 6400000,
-      "n_both_nan": 160,
+      "n_both_nan": 240,
       "n_nan_mismatch": 0,
-      "n_comparable": 6399840,
-      "n_exact_match": 6380903,
+      "n_comparable": 6399760,
+      "n_exact_match": 6382797,
       "bit_identical": false,
-      "max_abs_diff": 9.094947017729282e-13
+      "max_abs_diff": 1.6653345369377348e-16
     },
     {
       "column": "realized_vol_w100",
       "n_rows": 6400000,
-      "n_both_nan": 160,
+      "n_both_nan": 240,
       "n_nan_mismatch": 0,
-      "n_comparable": 6399840,
-      "n_exact_match": 6339188,
+      "n_comparable": 6399760,
+      "n_exact_match": 6342213,
       "bit_identical": false,
-      "max_abs_diff": 9.094947017729282e-13
+      "max_abs_diff": 1.1102230246251565e-16
     },
     {
       "column": "trade_flow_imb_w10",
@@ -396,30 +396,30 @@
     {
       "column": "lag_ret_1",
       "n_rows": 6400000,
-      "n_both_nan": 80,
+      "n_both_nan": 197,
       "n_nan_mismatch": 0,
-      "n_comparable": 6399920,
-      "n_exact_match": 6399920,
+      "n_comparable": 6399803,
+      "n_exact_match": 6399803,
       "bit_identical": true,
       "max_abs_diff": 0.0
     },
     {
       "column": "lag_ret_2",
       "n_rows": 6400000,
-      "n_both_nan": 160,
+      "n_both_nan": 280,
       "n_nan_mismatch": 0,
-      "n_comparable": 6399840,
-      "n_exact_match": 6399840,
+      "n_comparable": 6399720,
+      "n_exact_match": 6399720,
       "bit_identical": true,
       "max_abs_diff": 0.0
     },
     {
       "column": "lag_ret_3",
       "n_rows": 6400000,
-      "n_both_nan": 240,
+      "n_both_nan": 361,
       "n_nan_mismatch": 0,
-      "n_comparable": 6399760,
-      "n_exact_match": 6399760,
+      "n_comparable": 6399639,
+      "n_exact_match": 6399639,
       "bit_identical": true,
       "max_abs_diff": 0.0
     },

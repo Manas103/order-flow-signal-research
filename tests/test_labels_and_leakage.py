@@ -23,9 +23,7 @@ def test_sql_labels_match_independent_pandas_reimplementation():
     con.register("raw_msgs", raw)
     sql_out = con.execute(build_feature_sql("raw_msgs")).fetchdf()
 
-    mid = (raw["bid_px_1"] + raw["ask_px_1"]) / 2.0
-    plain = raw.assign(mid=mid)
-    plain = compute_forward_labels(plain, HORIZONS)
+    plain = compute_forward_labels(raw, HORIZONS)  # derives mid itself, independently of the SQL
 
     sql_out = sql_out.sort_values(["ticker", "date", "event_seq"]).reset_index(drop=True)
     plain = plain.sort_values(["ticker", "date", "event_seq"]).reset_index(drop=True)
@@ -70,3 +68,22 @@ def test_purged_day_split_has_no_date_overlap_and_respects_embargo():
     embargo = set(sorted_dates[N_TRAIN_DAYS:N_TRAIN_DAYS + N_EMBARGO_DAYS])
     assert embargo.isdisjoint(train_dates)
     assert embargo.isdisjoint(test_dates)
+
+
+def test_one_sided_book_has_no_mid_and_poisons_no_label():
+    """Regression: the first row of every session has an empty ask (price stored as
+    0), which once gave mid = half the real price and a fake label of +2,500 to
+    +10,000 ticks. Every such row must have NULL mid, spread and microprice, and
+    no label may start or end on one."""
+    raw = _small_sample()
+    con = duckdb.connect(":memory:")
+    con.register("raw_msgs", raw)
+    out = con.execute(build_feature_sql("raw_msgs")).fetchdf().sort_values(["date", "event_seq"])
+    one_sided = (out["bid_sz_1"] == 0) | (out["ask_sz_1"] == 0)
+    assert one_sided.any(), "fixture should contain the seeding row"
+    assert out.loc[one_sided, ["mid", "spread", "microprice"]].isna().all().all()
+    for h in HORIZONS:
+        col = label_col(h)
+        assert out[col].abs().max() < 100, f"{col} has a fake move of {out[col].abs().max()} ticks"
+        ahead = out.groupby("date")["mid"].shift(-h)
+        assert out.loc[ahead.isna() | out["mid"].isna(), col].isna().all()

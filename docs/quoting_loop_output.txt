@@ -1,14 +1,14 @@
 features: 6,400,000 rows
-bid-side fills with a defined horizon and lagged signal: 898,235
+bid-side fills with a defined horizon and lagged signal: 898,230
 {
   "pull_quantile": 0.2,
   "lag_signal_threshold": -235.0,
-  "n_fills_total": 898235,
-  "n_fills_pulled": 180632,
+  "n_fills_total": 898230,
+  "n_fills_pulled": 180627,
   "n_fills_kept": 717603,
-  "baseline_mean_adverse_selection": 0.011289918562514264,
+  "baseline_mean_adverse_selection": 0.008491738159438716,
   "signal_aware_mean_adverse_selection": 0.007881795365961402,
-  "pct_reduction": 30.18731426344206,
-  "mean_adverse_selection_of_pulled_fills": 0.024829487576952036
+  "pct_reduction": 7.182779096872549,
+  "mean_adverse_selection_of_pulled_fills": 0.010914999750862294
 }
 written to docs/quoting_loop_output.json

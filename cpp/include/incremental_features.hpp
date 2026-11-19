@@ -72,30 +72,40 @@ using FeatureRow = std::array<double, kNumFeatures>;
 
 // A fixed-capacity ring buffer that maintains a running sum (and,
 // optionally, a running sum of squares) over the last `capacity` pushed
-// values -- i.e. a SQL `ROWS BETWEEN w PRECEDING AND CURRENT ROW` frame,
-// where `capacity == w + 1`.
+// rows, i.e. a SQL `ROWS BETWEEN w PRECEDING AND CURRENT ROW` frame, where
+// `capacity == w + 1`. A NaN push is a row whose value is NULL: it occupies
+// a slot in the frame (so later evictions stay aligned with SQL's row
+// frame) but is excluded from the sum and the count, exactly as SQL
+// aggregates skip NULL.
 class SlidingMoment {
 public:
     void reset(int window) {
         capacity_ = static_cast<size_t>(window) + 1;
         buf_.assign(capacity_, 0.0);
         count_ = 0;
+        rows_ = 0;
         next_ = 0;
         sum_ = 0.0;
         sumsq_ = 0.0;
     }
 
     void push(double v) {
-        if (count_ == capacity_) {
+        if (rows_ == capacity_) {
             const double evicted = buf_[next_];
-            sum_ -= evicted;
-            sumsq_ -= evicted * evicted;
+            if (!std::isnan(evicted)) {
+                sum_ -= evicted;
+                sumsq_ -= evicted * evicted;
+                --count_;
+            }
         } else {
-            ++count_;
+            ++rows_;
         }
         buf_[next_] = v;
-        sum_ += v;
-        sumsq_ += v * v;
+        if (!std::isnan(v)) {
+            sum_ += v;
+            sumsq_ += v * v;
+            ++count_;
+        }
         next_ = (next_ + 1) % capacity_;
     }
 
@@ -116,7 +126,8 @@ public:
 private:
     std::vector<double> buf_;
     size_t capacity_ = 0;
-    size_t count_ = 0;
+    size_t count_ = 0;  // non-NaN values in the frame
+    size_t rows_ = 0;   // rows in the frame, NaN or not
     size_t next_ = 0;
     double sum_ = 0.0;
     double sumsq_ = 0.0;
@@ -167,10 +178,13 @@ public:
 
         const double bid_px1 = ev.bid_px[0], ask_px1 = ev.ask_px[0];
         const double bid_sz1 = ev.bid_sz[0], ask_sz1 = ev.ask_sz[0];
-        const double spread = ask_px1 - bid_px1;
+        // One-sided book (either touch empty): no mid, spread or microprice,
+        // matching the SQL guard in obsr/features.py.
+        const bool one_sided = bid_sz1 == 0.0 || ask_sz1 == 0.0;
+        const double spread = one_sided ? kNaN : ask_px1 - bid_px1;
         const double denom1 = bid_sz1 + ask_sz1;
         const double microprice =
-            denom1 == 0.0 ? kNaN : (bid_px1 * ask_sz1 + ask_px1 * bid_sz1) / denom1;
+            one_sided ? kNaN : (bid_px1 * ask_sz1 + ask_px1 * bid_sz1) / denom1;
 
         double bid_depth_total = 0.0, ask_depth_total = 0.0;
         for (int k = 0; k < kDepth; ++k) {
@@ -210,7 +224,7 @@ public:
         out[kOfiAgg5] = ofi_agg5;
         out[kQiAgg5] = qi_agg5 / 5.0;
 
-        const double mid = (bid_px1 + ask_px1) / 2.0;
+        const double mid = one_sided ? kNaN : (bid_px1 + ask_px1) / 2.0;
         const double mid_diff = std::isnan(state_.prev_mid[0]) ? kNaN : mid - state_.prev_mid[0];
         for (int j = 0; j < 3; ++j) {
             out[kLagRet1 + j] = std::isnan(state_.prev_mid[j]) ? kNaN : mid - state_.prev_mid[j];
@@ -232,10 +246,11 @@ public:
             }
         }
         for (int w = 0; w < 3; ++w) {
-            // DuckDB's window frame only ever sees non-NULL mid_diff from
-            // the second row of the partition onward; mirror that by not
-            // pushing the first row's (NaN) mid_diff into the moment.
-            if (!std::isnan(mid_diff)) state_.vol[w].push(mid_diff);
+            // mid_diff is NULL on the first row of a partition and on any row
+            // where this or the previous mid is NULL (one-sided book). Push it
+            // anyway: the frame is ROWS-based, so a NULL row still occupies a
+            // slot, and SlidingMoment leaves it out of the moments.
+            state_.vol[w].push(mid_diff);
             out[kRealizedVolW20 + w] = state_.vol[w].stddev_samp();
         }
         for (int w = 0; w < 3; ++w) {
@@ -243,7 +258,7 @@ public:
             out[kTradeFlowW10 + w] = state_.flow[w].sum();
         }
         for (int w = 0; w < 2; ++w) {
-            if (!std::isnan(time_gap)) state_.gap[w].push(time_gap);
+            state_.gap[w].push(time_gap);
             out[kGapMeanW20 + w] = state_.gap[w].mean();
         }
 

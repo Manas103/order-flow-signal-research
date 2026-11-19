@@ -1,9 +1,6 @@
-loaded 6,400,000 rows
-wrote 6,400,000 rows (1,305,600,000 bytes) to /tmp/obsr_messages.bin
-item size: 204 bytes (must equal sizeof(RawEvent) in cpp/include/raw_event.hpp)
 loaded 6400000 events (1305600000 bytes)
 events processed: 6400000
-median latency: 91.0 ns (0.091 us)
-p99 latency:    171.0 ns (0.171 us)
-mean latency:   99.8 ns (0.100 us)
-wrote 6400000 feature rows (43 doubles each) to /tmp/obsr_incremental_out.bin
+median latency: 100.0 ns (0.100 us)
+p99 latency:    220.0 ns (0.220 us)
+mean latency:   114.4 ns (0.114 us)
+wrote 6400000 feature rows (43 doubles each) to <scratch>/obsr_inc_out.bin

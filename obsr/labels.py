@@ -25,8 +25,15 @@ def compute_forward_labels(df: pd.DataFrame, horizons=HORIZONS) -> pd.DataFrame:
     events ahead minus the current mid, computed independently within each
     (ticker, date) group so it is undefined (NaN) for the last ``h`` rows
     of every session rather than reaching into the next session.
+
+    Without a ``mid`` column, mid is derived from the touch and is undefined
+    (NaN) wherever either side of the book is empty, so a label is NaN when
+    either end of its horizon lands on a one-sided book.
     """
     out = df.copy()
+    if "mid" not in out.columns:
+        one_sided = (out["bid_sz_1"] == 0) | (out["ask_sz_1"] == 0)
+        out["mid"] = ((out["bid_px_1"] + out["ask_px_1"]) / 2.0).mask(one_sided)
     grouped_mid = out.groupby(["ticker", "date"], sort=False)["mid"]
     for h in horizons:
         out[label_col(h)] = grouped_mid.shift(-h) - out["mid"]

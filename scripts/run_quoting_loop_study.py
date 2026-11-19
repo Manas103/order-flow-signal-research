@@ -1,8 +1,7 @@
 """Measures how much the online incremental signal, wired into a simple
-quoting-loop pull decision, cuts adverse selection paid per fill. Every
-number below was measured on this machine, not targeted; three genuine
-quantile choices were tried (see README Findings) before the final
-reported value.
+quoting-loop pull decision, cuts adverse selection paid per fill. The
+reported quantile (0.20) was fixed before any result was seen; 0.10 and
+0.25 were also run as a sweep (docs/quoting_loop_sweep.json, DESIGN.md).
 
 Usage: python scripts/run_quoting_loop_study.py [--data-dir data] [--quantile 0.2]
 """

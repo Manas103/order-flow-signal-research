@@ -1,0 +1,6 @@
+data/
+.venv/
+repro_out/
+cpp/build*/
+.git/
+docs/

@@ -1,923 +1,133 @@
-# Order Book Signal Research on Nasdaq-Style Message Data
+# Order-Flow Signal Research
 
-A from-scratch limit order book pipeline: a synthetic ITCH-style message
-generator feeding a price-time-priority book builder, a partitioned Parquet
-store queried entirely through DuckDB SQL window functions for feature
-engineering, and a LightGBM regressor evaluated out of sample, at three
-event-time horizons, against a linear order-flow-imbalance baseline under a
-day-level purged split. Every number below was measured on this machine, not
-targeted; where three genuine attempts did not reach a stated target, that is
-reported plainly rather than adjusted.
+[![CI](https://github.com/Manas103/order-flow-signal-research/actions/workflows/ci.yml/badge.svg)](https://github.com/Manas103/order-flow-signal-research/actions/workflows/ci.yml)
 
-**Extension (Oct. 2026):** a 10-minute realized-volatility forecast over
-the same message stream and the same 43 features, scored by RMSPE against
-the horizon-matched previous-window baseline, with a high-vs-low
-volatility-regime breakdown. See "Extended (Oct. 2026): 10-Minute Realized
-Volatility Forecast" below the queue-position extension.
+Message-level market microstructure research on a simulated limit order
+book: 6.4 million order messages, 43 features built in one DuckDB SQL
+window pass, a gradient-boosted model tested against two linear baselines
+with purged walk-forward validation and session-level significance tests,
+plus three follow-up studies (queue position and fill probability, a
+10-minute volatility forecast, and an online C++ feature engine driving a
+quoting rule).
 
-**Extension (Nov. 2026):** a C++20 online incremental feature path
-(`cpp/`), the first C++ in this repository, that recomputes all 43
-feature columns one order-book event at a time instead of in one DuckDB
-SQL window-function pass, diffed column by column against that same SQL
-pass over the full 6.4M-message store, plus a signal-aware quoting-loop
-decision (`obsr/quoting_loop.py`) that uses the online signal, lagged by
-exactly one event to avoid look-ahead, to cut adverse selection paid per
-fill. See "Extended (Nov. 2026): Online Incremental Feature Path and
-Signal-Aware Quoting" below the volatility-forecast extension.
+Python (pandas, NumPy, SciPy, scikit-learn, LightGBM), DuckDB SQL over
+Hive-partitioned Parquet, C++20, pytest, GitHub Actions, Docker.
 
-## Why this exists
+## Honest framing
 
-Order flow imbalance (OFI) is one of the small number of results in market
-microstructure with a clean, citable theoretical claim: Cont, Kukanov and
-Stoikov (2014) show OFI drives short-interval price changes approximately
-linearly, with a slope inversely proportional to depth. This project builds
-the smallest honest version of the research question a signal desk actually
-asks: does a tree model beat that linear baseline, and if so, for how long.
-It is a small version of message-level signal research, not a claim to have
-reproduced an institutional research pipeline.
+- **The data is synthetic.** `obsr/simulate.py` generates an ITCH-style
+  add/execute/cancel/delete stream for 5 made-up tickers over 16 trading
+  days, calibrated to published microstructure facts (bursty arrivals,
+  heavy-tailed sizes, order flow with short-horizon predictive power). It is
+  not fit to any real dataset.
+- **The signal the models find belongs to this simulator.** Prices follow a
+  latent momentum state that the order flow partly reveals. The study shows
+  that the pipeline can find a signal and test it honestly, not that the
+  same signal exists in a real market.
+- **The first version of this study got its main result wrong.** It
+  reported no usable signal. A one-sided book at the start of every session
+  produced a fake mid at half the real price, and the 109 bad rows (out of
+  6.4M) carried almost all of the label variance, squeezing every model's
+  R^2 to zero. The walk-forward work exposed it. The numbers below are after
+  the fix, with the model's hyperparameters unchanged. The full account is in
+  [DESIGN.md](DESIGN.md#findings).
 
-## Honest framing, up front
+## Results
 
-- **This is not real Nasdaq TotalView-ITCH or LOBSTER data.** Real LOBSTER
-  sample files sit behind a JavaScript-rendered request form that could not
-  be fetched as plain data in this build environment, and this project does
-  not claim otherwise. `obsr/simulate.py` generates a from-scratch,
-  self-consistent ITCH-style add/execute/cancel/delete message stream,
-  calibrated to three published microstructure facts (bursty, autocorrelated
-  order arrivals; heavy-tailed order sizes; order flow imbalance with real,
-  decaying short-horizon predictive power), not fit to any specific real
-  dataset. This mirrors the synthetic-feed precedent already used elsewhere
-  in this portfolio (`exchange-market-data-decoder`,
-  `market-data-tick-capture`), disclosed the same way here.
-- **The book builder enforces price-time priority and rejects a crossing
-  add.** Unlike the synthetic feed in the sibling decoder repos, this
-  generator only ever proposes adds that do not cross the opposite side (see
-  `obsr/book.py`'s `CrossedBookError`), so the book stays valid by
-  construction rather than by later correction.
-- **The gradient-boosted-tree and linear-baseline R^2 targets were not
-  reached, after three genuine attempts.** See Findings.
-- **"5 Nasdaq names" means 5 synthetic tickers (SYNA through SYNE), not 5
-  real symbols.** Named that way because the design decision, "how many
-  names," is itself part of what the posting's substitute-experience clause
-  asks for; the price series behind each ticker is synthetic.
-
-### Machine and toolchain
-
-| | |
+| Study | Measured |
 |---|---|
-| CPU | AMD Ryzen 7 7800X3D, 8 physical / 16 logical cores |
-| RAM | 31.1 GB |
-| OS | Windows 11, build 10.0.26200 |
-| Python | CPython 3.12.10, in a repo-local venv |
-| Libraries | duckdb 1.5.5, pandas 3.0.5, pyarrow 25.0.1, lightgbm 4.7.0, scikit-learn 1.9.1, numpy 2.5.3, pytest 9.1.1 (see `requirements.txt`) |
-| Pacing | non-realtime process, no CPU pinning, single run per reported number unless noted |
+| Price-move forecast, 10 events ahead (walk-forward, 6 folds, 30 sessions) | GBT R^2 **+0.154** vs ridge on 43 features +0.013 and one-feature OFI +0.000; GBT wins every fold; Diebold-Mariano p = 7.7e-11 vs ridge |
+| Same, 100 events ahead | GBT R^2 **+0.106** vs ridge +0.019; wins every fold; p = 1.2e-05 |
+| Same, 1,000 events ahead | GBT +0.017 vs ridge +0.021; **no significant difference** (p = 0.82) |
+| Fill probability at the touch, 1-second horizon | rank 1: **0.5377**, rank 5: **0.0410**, smooth near-geometric decay |
+| Rank-aware quote-and-wait vs always crossing | **0.64%** lower effective spread, essentially no improvement |
+| 10-minute realized volatility forecast (140 test bins) | RMSPE **0.540** vs **7.265** for the previous-window baseline (92.6% lower; the baseline is unusually weak here, see Limitations) |
+| C++ online feature engine vs the SQL pass, 6.4M rows | **38 of 43** columns bit-identical, the other 5 within 1.7e-16, 0 NULL mismatches; about **0.1us** median per event |
+| Pulling the bid on a weak trade-flow signal | **7.18%** less adverse selection per fill at the 20% quantile (4.06% at 10%, 9.75% at 25%) |
 
-## Architecture
+Every number comes from a committed script and raw output under `docs/`.
 
-```
-obsr/simulate.py       synthetic ITCH-style message generator (5 tickers x 16 days x 80,000 msgs)
-obsr/book.py           fast price-time-priority BookBuilder (sorted price levels, FIFO queues per level)
-obsr/reference_book.py SlowBookBuilder: independent, brute-force reference oracle
-obsr/store.py          partitioned Parquet writer (ticker=.../date=...) plus a DuckDB connection helper
-obsr/features.py       43 microstructure features and 3 forward labels, built entirely in one DuckDB SQL statement
-obsr/labels.py         forward mid-price-change label definition, plus an independent plain-pandas reimplementation for testing
-
-scripts/generate_data.py   runs the simulator for all 80 (ticker, date) sessions, writes the Parquet store
-scripts/run_research.py    builds features, applies the day-level purged split, trains GBT + linear baseline, reports R^2
-
-tests/test_book_invariants.py    conservation and price-time-priority checks on BookBuilder
-tests/test_reference_oracle.py   BookBuilder diffed exactly against SlowBookBuilder over 20,000 randomized operations
-tests/test_features.py           hand-computed feature values on a crafted single row
-tests/test_labels_and_leakage.py SQL LEAD labels vs. an independent pandas reimplementation; purged-split overlap check
-
-docs/benchmark_output.txt   raw run of scripts/run_research.py (the reported attempt)
-docs/test_output.txt        raw pytest run
-docs/research_results.json  the same R^2 numbers, machine-readable
-```
-
-**Why DuckDB SQL for features, not pandas.** `obsr/features.py`'s docstring
-states the rule and the tests enforce it: every feature is a `PARTITION BY
-ticker, date ORDER BY event_seq` window function, so a lag, a rolling window,
-or a forward label can never reach across a session boundary by construction.
-A pandas implementation using `.shift()`/`.rolling()` across a concatenated
-frame would need the same partition keys threaded through every call by hand;
-one SQL statement with one `WINDOW` clause is both the faster and the harder-
-to-get-wrong version of the same computation, which is why `store.py` and
-`features.py` route the whole feature build through DuckDB rather than pandas.
-
-**Why a fast book and a slow one.** `BookBuilder` keeps sorted price-level
-lists and O(1) level-size lookups because it runs inside the generator's
-per-message loop 6.4 million times. `SlowBookBuilder` recomputes every
-answer from a flat dict by brute-force scan, on purpose: it shares no data
-structure with the fast implementation, so agreement between the two is
-actual evidence of correctness rather than two paths through the same bug.
-
-**The linear baseline is deliberately one feature.** `ofi_agg5`, the sum of
-order flow imbalance across the top 5 levels, is regressed alone against each
-horizon's label. This is the Cont-Kukanov-Stoikov baseline in its narrowest,
-most falsifiable form: if the tree model's advantage over one honestly-chosen
-feature disappears at long horizons, that is a real finding about decay, not
-an artifact of a weak baseline built from many features.
-
-## Validation
-
-**1. Reference-oracle diff.** `tests/test_reference_oracle.py` runs 10 seeded
-sequences of 2,000 randomized add/execute/cancel/delete operations each
-(20,000 operations total) through `BookBuilder` and `SlowBookBuilder` in
-lockstep, asserting the full 5-level snapshot matches after every single
-operation, not just at the end.
-
-**2. Label cross-check.** `tests/test_labels_and_leakage.py` builds the same
-small message sample through the production SQL path
-(`obsr.features.build_feature_sql`, DuckDB `LEAD`) and through
-`obsr.labels.compute_forward_labels` (plain pandas `groupby().shift()`), and
-asserts the three horizon labels agree exactly, row for row.
-
-**3. Leakage check.** The same test asserts that for every (ticker, date)
-session, the last `h` rows have a null `fwd_mid_chg_h` label rather than a
-label reaching into the next session, and separately asserts the day-level
-purged train/test split produces disjoint date sets with the embargo day in
-neither.
-
-**4. Feature unit checks.** `tests/test_features.py` hand-computes spread,
-microprice, level-1 queue imbalance and total depth on a single crafted row
-and diffs them exactly against the SQL output, plus asserts every one of the
-43 declared feature columns actually appears in the query's output.
+## How it is built
 
 ```
-11 passed in 3.05s
+obsr/simulate.py        message generator (seeded, deterministic)
+obsr/book.py            price-time priority book, rejects crossing adds
+obsr/store.py           Hive-partitioned Parquet (ticker=/date=), read through DuckDB
+obsr/features.py        43 features + forward labels in one SQL window pass, PARTITION BY ticker, date
+obsr/stats.py           walk-forward folds, Diebold-Mariano, session bootstrap, information coefficient
+obsr/queue_position.py  L3 replay recovering each order's queue rank
+obsr/fill_probability.py, obsr/execution_cost.py   fill probability by rank (one SQL pass), cost comparison
+obsr/volatility.py      10-minute bins, LightGBM forecast, RMSPE
+cpp/                    IncrementalFeatureEngine: all 43 features per event, O(1) amortized
+obsr/quoting_loop.py    signal-aware quote pulling
+scripts/                one entry point per study, each writes docs/
 ```
 
-## Findings
+Design choices worth knowing:
 
-**The gradient-boosted-tree and linear-OFI R^2 targets were not reached,
-after three genuine attempts, and the miss is a real finding about this
-signal's strength, not a bug.** First attempt: an unregularized LightGBM
-model (300 trees, 31 leaves, no explicit regularization) trained on the full
-4.4M-row training set measured R^2 of -0.0384 at the 10-event horizon,
-*worse* than predicting the mean, while the linear-OFI baseline measured
-essentially 0.0000. The working hypothesis was overfitting given how many
-noisy features (43) sit next to one genuinely informative one. Second
-attempt: winsorizing the label at the 1st/99th train percentile (to blunt
-the influence of the Pareto-tailed order sizes on a heavy-tailed price-change
-target) produced R^2 of exactly 1.0000 at the 10- and 100-event horizons.
-That number is the wrong kind of encouraging: the 10-event mid-price-change
-label is spiked at zero (most 10-event windows see no tick-level move at
-all), so clipping collapsed the test target's own variance near zero, and
-R^2 became a numerically degenerate ratio rather than a measure of skill.
-That attempt is disclosed and discarded, not reported as a result. Third
-attempt: reverting the label transform and regularizing the model instead
-(15 leaves, max depth 5, `reg_alpha`/`reg_lambda` = 1.0, `min_child_samples`
-1,000) measured R^2 of -0.0033, +0.0025 and +0.0070 at the 10-, 100- and
-1,000-event horizons, and this is the number reported below.
+- **Leakage is prevented by construction.** Every window is
+  `PARTITION BY ticker, date`, so no feature or label crosses a session, and
+  the split is by whole days with a one-day embargo (wider than the longest
+  label horizon).
+- **Significance is tested per session, not per event.** A horizon-h label
+  overlaps its next h-1 neighbors, so event-level standard errors would be
+  far too small. Each (ticker, day) session counts as one independent unit.
+- **Two linear baselines, not one.** One-feature OFI tests the textbook
+  linear relationship; ridge on all 43 features tests whether the tree wins
+  through nonlinearity or just through more inputs. At 10 and 100 events it
+  is nonlinearity.
+- **Every core computation has an independent check:** the book against a
+  brute-force oracle, the SQL labels against a pandas re-implementation, the
+  C++ engine against the SQL pass on all 6.4M rows.
 
-The linear-OFI baseline's R^2 stayed within numerical noise of 0.0000 at
-every horizon across all three attempts. Root cause: `market_simulator`'s
-calibration biases the *aggressor* side of EXECUTE messages toward the
-latent momentum state considerably more strongly than the *resting* side of
-ADD messages (`K_EXEC=1.6` vs. `K_ADD=0.5` in `obsr/simulate.py`), so the
-correlation between top-of-book OFI and the momentum actually driving the
-label is real but weak enough that, over a 4.4M-row training set, it is
-statistically indistinguishable from zero out of sample. That is a
-calibration property of this generator, not a claim that OFI has no real
-predictive content; the Cont-Kukanov-Stoikov result this project is built
-around was derived from real order book data, not from this simulator.
+[DESIGN.md](DESIGN.md) has the architecture, every validation step, what
+broke along the way, and the full results tables.
 
-**The tree's advantage over the linear baseline does not clearly decay with
-horizon here, which contradicts the claim it would.** The measured advantage
-(GBT R^2 minus linear R^2) is -0.0033 at 10 events, +0.0025 at 100, and
-+0.0070 at 1,000: essentially flat and small at every horizon, not a large
-short-horizon edge that erodes. Given how close both baselines sit to zero
-signal at every horizon, this project cannot distinguish "the tree's edge
-decays" from "neither model has enough signal at any horizon to say," and
-reporting that honestly is more useful than asserting a decay curve the data
-does not support.
-
-## Measured results
-
-Machine: AMD Ryzen 7 7800X3D, 8 physical / 16 logical cores, 31.1 GB RAM,
-Windows 11 build 10.0.26200, CPython 3.12.10, LightGBM 4.7.0. Full pipeline
-(6,400,000 messages, feature build, both models, all three horizons) runs in
-about 61 seconds. Raw output in `docs/benchmark_output.txt` and
-`docs/research_results.json`; the two discarded attempts are described in
-Findings, not re-run for this README.
-
-| Horizon (events) | n_train | n_test | GBT out-of-sample R^2 | Linear-OFI out-of-sample R^2 | Tree advantage |
-|---|---|---|---|---|---|
-| 10 | 4,399,010 | 1,599,640 | **-0.0033** (target 0.061) | **-0.0000** (target 0.042) | -0.0033 |
-| 100 | 4,394,060 | 1,597,840 | **+0.0025** | **-0.0000** | +0.0025 |
-| 1,000 | 4,344,560 | 1,579,840 | **+0.0070** | **-0.0000** | +0.0070 |
-
-What R^2 measures here: out-of-sample coefficient of determination on a
-day-level purged split (11 train days, 1 embargo day, 4 test days per
-ticker), computed once per horizon on the full test set, not cross-validated
-or averaged across seeds. It does not measure trading P&L, transaction
-costs, or capacity; those are exactly what the sibling projects in this
-folder's role measure instead.
-
-| Data claim | Target | Measured |
-|---|---|---|
-| Full-depth books reconstructed | 5 Nasdaq-style names | **5** (SYNA-SYNE) |
-| Messages | 6.4M | **6,400,000** exactly |
-| Store format | partitioned Parquet queried with DuckDB | Hive-partitioned (`ticker=/date=`), all feature SQL runs through DuckDB |
-| Microstructure features | 40+ | **43** |
-| Horizons | 10, 100, 1,000 events | all three implemented |
-| Split | day-level purged | 11 train / 1 embargo / 4 test days per ticker, verified disjoint (test) |
-
-## Building and running
+## Build and reproduce
 
 ```bash
-# from a Python 3.12 venv with requirements.txt installed
-python scripts/generate_data.py       # ~49s, writes 220 MB to data/ (gitignored)
-python scripts/run_research.py        # ~55-75s, writes docs/research_results.json
-python -m pytest tests -v             # ~3s, 11 tests
+pip install -r requirements.txt
+python -m pytest tests -q                     # 31 tests, about 15 seconds
+scripts/reproduce.sh                          # generates data/ (220 MB), reruns every study into repro_out/
+CPP=1 scripts/reproduce.sh                    # also builds the C++ engine and diffs it against SQL (Linux)
 ```
 
-`data/` is gitignored (220 MB of Parquet, regenerated in under a minute by
-the command above); nothing under `data/` is tracked.
-
-## Sibling comparison
-
-[`exchange-market-data-decoder`](https://github.com/Manas103/exchange-market-data-decoder)
-and [`market-data-tick-capture`](https://github.com/Manas103/market-data-tick-capture)
-both build full-depth books from a synthetic message stream, but neither does
-any signal research: no features, no model, no baseline, no horizons, and
-their synthetic feeds are explicitly allowed to cross (a documented finding
-in the decoder's own README) because their subject is decoding throughput,
-not price prediction. This project's generator instead rejects a crossing
-add outright, because a crossed book has no well-defined mid price to build
-a regression label from. The two repos are answering different questions
-with the same category of input.
-
-## Extended (Oct. 2026): Queue Position and Fill Probability Study
-
-**What existed before this extension and what is new.** Before this, the
-book builder reconstructed full-depth snapshots but threw away exactly the
-information a resting order's queue position needs: `BookBuilder` keeps a
-FIFO list per price level internally but the message store only ever wrote
-out aggregate level size, never which order was where in that list, because
-nothing before this extension needed it. Three things are new: a full L3
-replay (`obsr/queue_position.py`) that recovers each ADD event's queue rank
-and quantity ahead from the stored message stream alone; a fill-probability
-measurement by queue rank, built as one DuckDB SQL window-function pass
-(`obsr/fill_probability.py`); and an execution-cost comparison between
-always crossing the spread and a rank-aware quote-and-wait rule
-(`obsr/execution_cost.py`), none of which the base repo had any reason to
-include (it only ever asked "does a feature predict a price move", never
-"would an order here have filled").
-
-### Architecture (additions)
-
-```
-obsr/queue_position.py    replays one session's stored message stream
-                           through a fresh BookBuilder, recording each ADD
-                           event's rank (1 = first order ever at that exact
-                           price) and qty_ahead (resting quantity in front
-                           of it), plus whether it joined the best bid/ask
-                           at that instant ("at the touch")
-obsr/fill_probability.py  one DuckDB SQL statement, built entirely from a
-                           forward-looking window function over a UNION of
-                           ADD and EXECUTE rows (no join operator), that
-                           reads off each order's first qualifying EXECUTE
-                           timestamp and buckets fill-within-horizon by rank
-obsr/execution_cost.py    always-crossing vs. rank-aware quote-and-wait
-                           expected effective spread, using the measured
-                           fill-probability-by-queue-depth curve and a
-                           pandas merge_asof forward lookup for the price
-                           one horizon later
-
-scripts/compute_queue_positions.py  runs the replay over all 80 sessions,
-                           writes data/queue_positions/ (same partitioning
-                           as the message store)
-scripts/run_queue_study.py  runs the SQL window pass, the cost comparison,
-                           writes docs/queue_study_results.json
-
-tests/test_queue_position.py      hand-computed rank/qty_ahead/touch on a
-                           9-event scenario, plus a 20,000-operation
-                           randomized sequence diffed against an
-                           independent brute-force ledger that reimplements
-                           price-time-priority execution from scratch
-tests/test_fill_probability_sql.py  hand-computed fill-within-horizon
-                           outcomes (including a fill that lands exactly
-                           one horizon too late, and two sessions reusing
-                           the same order_id, to prove the partition keys
-                           are doing their job) against the SQL window pass
-
-docs/queue_study_output.txt    raw run of scripts/run_queue_study.py
-docs/queue_study_results.json  the same numbers, machine-readable
-```
-
-**Why "at the touch" is reported separately from the whole-book number.**
-The first genuine measurement attempt bucketed every ADD event in the whole
-book by rank, rank 5 meaning "5 or more": fill probability came out 0.1758
-at rank 1 and 0.000055 at rank "5+". That number is real but misleading,
-because it silently mixes two different effects. An order's fill
-probability depends on two things: how far its *price* sits from the
-market, and its *queue position* once it is at a price that matters. Rank
-"5 or more" across the whole book is dominated by 2,658,360 of 2,689,366
-total ADD events (98.8%) resting at a price nowhere near the touch, which
-almost never fill quickly for a completely different reason than queue
-position. Restricting to the 1,088,096 ADD events that joined the best
-bid/ask at the instant of insertion isolates the question the resume claim
-is actually about, and is the number reported below.
-
-**Why rank 5 means exactly rank 5, not "5 or more", in the reported
-table.** The second attempt, restricted to the touch, still bucketed rank 5
-as "5 or more" and measured 0.0001 at that bucket, because the touch queue
-itself can run thousands deep and a "5+" bucket at the touch is still
-overwhelmingly deeper-than-5 orders. The third attempt looked at the exact
-per-rank breakdown (ranks 1 through 12, see Findings) and found a smooth,
-steep, monotonic decay with no cliff at any particular rank, so the
-honestly reportable number is fill probability at the *exact* rank the
-claim names, not a bucket that happens to be labeled with that number.
-
-### Validation
-
-1. **Reference-oracle diff on queue position.** `tests/test_queue_position.py`
-   runs 20,000 randomized add/execute/cancel/delete operations through
-   `BookBuilder` while an entirely separate, independently coded ledger
-   (its own price-time-priority execution loop, not a call into
-   `BookBuilder`) tracks the same orders, and asserts every single ADD's
-   rank and quantity-ahead, as recovered by `replay_queue_positions`,
-   matches the independent ledger's brute-force recomputation.
-2. **Hand-computed fill outcomes.** `tests/test_fill_probability_sql.py`
-   checks the SQL window pass against five hand-picked cases: a fill
-   inside the horizon, no fill at all, a fill exactly one horizon-length
-   too late (the off-by-one case most likely to hide a bug), a fill after
-   a gap with an intervening ADD at a different timestamp, and two
-   different sessions reusing the same `order_id`, which must not be
-   confused by the `PARTITION BY ticker, date, order_id` window.
-
-```
-14 passed in 11.55s
-```
-
-### Findings
-
-**Fill probability decays steeply and smoothly with exact queue rank at
-the touch, with no cliff at any one rank.** Measured per exact rank, 1
-through 12, at-the-touch ADD events, 1-second horizon:
-
-| Rank | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10+ |
-|---|---|---|---|---|---|---|---|---|---|---|
-| Fill probability | 0.5377 | 0.3262 | 0.1724 | 0.0981 | **0.0410** | 0.0163 | 0.0059 | 0.0010 | 0.0010 | ~0.0000 |
-
-The decay is close to geometric (each rank roughly 55-60% of the previous
-one's probability) until it flattens into noise around rank 8, which is
-mechanically exactly what price-time priority predicts: an order fills
-only after every order ahead of it either fills or is removed, so each
-additional rank multiplies the chance of surviving long enough to be
-reached.
-
-**The resume's claimed numbers (0.71 at rank 1, 0.19 at rank 5) were not
-reached, after reaching this rank/touch methodology on the third genuine
-attempt; the measured numbers (0.5377, 0.0410) are reported instead of
-re-targeted.** The *shape* of the claim is correct (rank 1 clearly beats
-rank 5, by more than 10x), but the measured magnitude is both lower at
-rank 1 and much lower at rank 5 than claimed. The two likely drivers, not
-separately isolated here: this generator's order arrival rate (80,000
-messages/session across 5 tickers) may simply be thinner at the touch than
-whatever produced the original target, and a 1-second horizon on
-`gaps ~ Exponential(0.05)`-paced synthetic time (mean 20 events/second)
-gives an order roughly 20 *subsequent* events to be reached, not a fixed
-large sample; both would make even a favorable rank fill less often than a
-denser or longer-horizon setup would.
-
-**The rank-aware quote-and-wait rule did not come close to the claimed
-18% effective-spread reduction, after the same three attempts; it measured
-0.64%, essentially no improvement.** The direct cause: the expected-value
-blend (`p_fill * (bid - mid) + (1 - p_fill) * (ask_later - mid)`) is
-dominated by the `(1 - p_fill)` branch almost everywhere, because the
-large majority of "at the touch" ADD events sit behind an already-deep
-queue (the median `qty_ahead` of the 1,088,096 at-touch ADD events is far
-above the rank-1 level), so `p_fill` is usually small and the rule's
-expected cost collapses toward "cross later", which on this calibration's
-random-walk mid is, on average, barely different from crossing now. A
-rank-aware rule would only show the claimed-size benefit if it could
-reliably post at or near rank 1, which the measured rank distribution says
-is the exception, not the default, for an order simply joining the current
-best price.
-
-### Measured results
-
-Machine: AMD Ryzen 7 7800X3D, 8 physical / 16 logical cores, 31.1 GB RAM,
-Windows 11 build 10.0.26200, CPython 3.12.10, DuckDB 1.5.5. Full pipeline
-(80-session replay plus the SQL window pass plus the cost comparison) runs
-in about 51 seconds (43.2s replay + 7.1s study). Raw output in
-`docs/queue_study_output.txt` and `docs/queue_study_results.json`.
-
-| Claim | Target | Measured | Met |
-|---|---|---|---|
-| Simulated price-time-priority order book | implemented | `BookBuilder` (already existed), replayed per-order via `queue_position.py` | Yes |
-| Messages | 6.4M | 6,400,000 (already measured; unchanged by this extension) | Yes |
-| Fill probability by queue rank in one DuckDB SQL window pass | implemented | `obsr/fill_probability.py`, a single statement, no join operator | Yes |
-| Fill probability at rank 1 | 0.71 | **0.5377** (at the touch) | No |
-| Fill probability at rank 5 | 0.19 | **0.0410** (exact rank 5, at the touch) | No |
-| Rank-aware quote-and-wait vs. always-crossing effective spread | 18% less | **0.64% less** | No |
-
-What this measures: fill probability is the fraction of ADD events at a
-given exact queue rank, restricted to events that joined the best bid/ask
-at insertion, that see at least one EXECUTE against that same order within
-1 simulated second. It is a mechanical property of price-time priority and
-this generator's order flow, not a forecast; see the sibling
-`order-book-signal-research` discussion above about why a mechanical claim
-was chosen over a predictive one. The effective-spread comparison is an
-expected-value calculation over 12,720 decision points (every 500th event
-per session with both sides of the book populated), not a simulated,
-path-dependent backtest; it does not account for the rank-aware rule's own
-market impact or for multiple competing resting orders.
-
-### Building and running
+Or in Docker:
 
 ```bash
-# from the same venv as the base repo (requirements.txt unchanged)
-python scripts/generate_data.py            # if data/ is not already populated
-python scripts/compute_queue_positions.py  # ~43s, writes data/queue_positions/
-python scripts/run_queue_study.py          # ~7s, writes docs/queue_study_results.json
-python -m pytest tests/test_queue_position.py tests/test_fill_probability_sql.py -v
+docker build -t order-flow-signal-research .
+docker run --rm order-flow-signal-research    # tests
 ```
 
-## Extended (Oct. 2026): 10-Minute Realized Volatility Forecast
-
-**What existed before this extension and what is new.** The base repo and
-the queue-position extension both ask whether something predicts a future
-*price move* or a future *fill*; neither asks the volatility question a
-trading desk actually prices risk on. Three things are new: a 10-minute
-wall-clock binning of the same message stream (`obsr/volatility.py`), a
-LightGBM regressor forecasting each bin's *next* realized volatility from
-the 43 microstructure features already built for the base repo (reused
-unchanged, as of the last event in the current bin), and an RMSPE scoring
-comparison against the horizon-matched previous-window baseline (a bin's
-own, already-realized volatility used as the forecast for the next bin).
-
-### Architecture (additions)
-
-```
-obsr/volatility.py   BIN_SECONDS=600 (10-minute) bin realized volatility,
-                      built as a DuckDB SQL window pass over tick-to-tick
-                      *microprice* changes (not raw best-bid/ask mid, see
-                      Findings); the forward label (next bin's own RV) via
-                      LEAD, same leakage convention as obsr.labels; an
-                      RMSPE helper
-
-scripts/run_volatility_study.py   builds the 43 features, bins realized
-                      volatility, merges the last-event-per-bin feature
-                      snapshot with the current and next bin's RV, applies
-                      the same day-level purged split as run_research.py,
-                      trains LightGBM on log(fwd_rv), scores RMSPE against
-                      the previous-window baseline, and reports a
-                      high-vs-low realized-vol regime split
-
-tests/test_volatility.py   bin RV diffed against an independent pandas
-                      reimplementation; the forward-label leakage check;
-                      RMSPE hand-computed cases; a targeted regression test
-                      for the one-sided-empty-book microprice bug (see
-                      Findings)
-
-docs/volatility_benchmark_output.txt   raw run of scripts/run_volatility_study.py
-docs/volatility_study_results.json     the same numbers, machine-readable
-```
-
-**Why microprice, not the raw best-bid/ask mid, for realized volatility.**
-The base repo's own README already discloses that most short event-count
-windows see no tick-level mid change at all (the 10-event label is "spiked
-at zero"). Over a full 10-minute bin, the best bid/ask is still remarkably
-sticky: one session measured only 12 distinct best-bid price levels across
-all 80,000 events. A mid-based realized volatility is therefore degenerate
-at this timescale (almost every bin measures exactly 0.0), so this
-extension measures realized volatility from the size-weighted microprice
-instead, which moves on every size change at the touch, not only when the
-best price level itself changes. Microprice is already one of the 43
-features the forecasting model sees, so this is not a new quantity, only a
-new use of an existing one.
-
-**Why the training label is log(fwd_rv), not fwd_rv.** Realized volatility
-over a fixed window is right-skewed (a handful of bins run 10 to 50x a
-typical bin's RV); training directly on the raw scale let a small number
-of high-RV bins dominate the loss. Training on the log and exponentiating
-the prediction back before scoring is the standard fix for a lognormal-
-shaped target, and it measurably lowered model RMSPE (1.19 to 0.54 at the
-same split, see Findings) without touching the baseline, the labels, the
-split, or the scoring function itself.
-
-### Validation
-
-1. **Reference-oracle diff on bin realized volatility.**
-   `tests/test_volatility.py::test_sql_bin_rv_matches_independent_pandas_reimplementation`
-   diffs the DuckDB SQL bin-RV computation against a completely independent
-   pandas re-implementation (its own `groupby().diff()`, no shared code)
-   on a small sample, exactly.
-2. **Leakage check.** The same file asserts a bin's forward label equals
-   the *next* bin's own realized volatility within the same session, and
-   is null on the last bin of every session, never pulled from a different
-   session in the same DataFrame.
-3. **A targeted regression test for the microprice bug** (see Findings):
-   a 3-row synthetic frame reproducing the exact one-sided-empty-book
-   condition that produced a spurious multi-thousand-tick jump on the
-   first attempt, asserting the fixed guard returns 0.0 instead.
-4. **RMSPE hand-computed cases**, including a perfect forecast scoring
-   exactly 0.0.
-
-```
-20 passed in 12.21s
-```
-
-### Findings
-
-**The first attempt measured realized volatility from the raw best-bid/ask
-mid and was dominated almost entirely by a single-event artifact, not real
-price movement.** Every bin of one checked session measured a realized
-volatility of exactly 0.0 except the very first, which measured 2,500.5,
-larger than the entire rest of the session combined. Root cause: at
-`event_seq=0` of every session, the book is still being seeded one level
-at a time, so one side has size 0 while that side's *price* also defaults
-to 0; the base repo's own microprice null guard (`bid_sz_1 + ask_sz_1 =
-0`) does not fire in this case because the *other* side's size is
-nonzero, so the sum is nonzero too, and the formula divides a near-zero
-numerator by the live side's size, returning a spuriously well-defined
-0.0 that the very next real microprice value (around 5000) then jumps
-away from by thousands of ticks. The fix guards on `bid_sz_1 = 0 OR
-ask_sz_1 = 0` directly (`obsr/volatility.py`), and a targeted regression
-test (`test_one_sided_empty_book_does_not_produce_a_spurious_microprice_jump`)
-pins it. This is a latent property of the base repo's own microprice
-feature column too (it is one spurious value out of 6.4M rows there,
-immaterial to a model trained on 43 features, but it is the single
-dominant value in a volatility estimator that squares and sums tick-to-
-tick differences within a short window), discovered only because this
-extension is unusually sensitive to it.
-
-**Switching to microprice-based volatility, after the bug fix, still did
-not reach the claimed RMSPE numbers; the honest reading is that this
-generator does not model volatility clustering.** Realized volatility
-measured per bin ranges from 0.0075 to 1.87 (560 bins, median 0.078), and
-the previous-window baseline's RMSPE came in at 7.26, far worse than the
-resume's claimed 0.321. Real markets' volatility is strongly
-autocorrelated bin to bin (a calm 10 minutes is usually followed by
-another calm one), which is exactly what makes "use last window's RV" a
-competitive baseline in practice; this generator's latent momentum state
-(`obsr/simulate.py`'s `m`, AR(1), rho=0.97) drives *directional* drift
-persistence, not *volatility* persistence, so bin-to-bin RV here swings
-more than a real previous-window baseline would face, inflating both
-RMSPE numbers (and, because the percentage-error metric is most sensitive
-exactly where the baseline is worst, inflating the measured gain even
-more than it inflates either RMSPE alone). Three genuine attempts were
-made: raw-scale LightGBM (model RMSPE 1.19, gain 83.6%), log-scale
-LightGBM (model RMSPE 0.54, gain 92.6%, the number reported below), and a
-regime-split redefinition (see next finding); none reached the claimed
-0.254/0.321 pair, and no further attempt was made after the third.
-
-**The regime split only matched the claimed direction after switching
-what "activity" means, and that is reported as a measured correction, not
-hidden.** The first regime-split attempt bucketed test bins by raw message
-count and measured the *larger* RMSPE gain in the low-message-count half
-(88.9% vs. 43.0% in the high-message-count half) -- the opposite of the
-resume's claim. The second attempt re-bucketed by the test bins' own
-median *current* realized volatility (`prev_rv`) instead of message count,
-and measured the gain concentrated in the high-volatility half (95.6% vs.
-53.5%), matching the claim's direction. The mechanical reason the two
-proxies disagree: message count is close to constant across bins in this
-generator (a roughly Poisson arrival process), so splitting on it mostly
-separates sessions by random noise in a nearly flat distribution, while
-realized volatility itself varies by two orders of magnitude bin to bin
-and is the more mechanically relevant "regime" for a volatility-forecast
-gain to concentrate in. The volatility-level split is the one reported
-below; the message-count split's reversed result is disclosed here rather
-than discarded.
-
-### Measured results
-
-Machine: AMD Ryzen 7 7800X3D, 8 physical / 16 logical cores, 31.1 GB RAM,
-Windows 11 build 10.0.26200, CPython 3.12.10, DuckDB 1.5.5, LightGBM
-4.7.0. Full pipeline (feature build, binning, split, training, scoring)
-runs in about 22 seconds. Raw output in
-[`docs/volatility_benchmark_output.txt`](docs/volatility_benchmark_output.txt)
-and [`docs/volatility_study_results.json`](docs/volatility_study_results.json).
-
-| Claim | Target | Measured | Met |
-|---|---|---|---|
-| 10-minute realized volatility forecast | implemented | 600-second wall-clock bins, `obsr/volatility.py` | Yes |
-| 43 microstructure features computed in one DuckDB window pass | implemented | reused unchanged from `obsr/features.py` (already measured in the base repo) | Yes |
-| 6.4M simulated order book messages | 6.4M | **6,400,000** (already measured; unchanged by this extension) | Yes |
-| Scored by RMSPE against the horizon-matched previous-window baseline | implemented | `obsr/volatility.py::rmspe`, baseline = each bin's own already-realized volatility | Yes |
-| Purged day-level train/test split | implemented | same 11 train / 1 embargo / 4 test days per ticker as `run_research.py`, applied at bin level | Yes |
-| RMSPE 0.254 against 0.321 | 0.254 / 0.321 | **0.5398** / **7.2646** (third genuine attempt, log-scale training; see Findings) | No |
-| 20.9% gain | 20.9% | **92.6%** (directionally the same sign, far larger; driven by the baseline's weakness, see Findings) | No, overshoots |
-| Regime split traced the gain almost entirely to high-activity sessions | qualitative | **Yes, after redefining "activity" as realized-vol level rather than message count**: 95.6% gain in the high-realized-vol half of the test set vs. 53.5% in the low half (not "almost entirely", but clearly concentrated) | Partially: direction matches on the second proxy tried, magnitude is less extreme than "almost entirely" |
-
-What RMSPE measures here: root mean squared percentage error on 140
-held-out test bins (`sqrt(mean(((actual-pred)/actual)^2))`), computed once
-on the full test set, not cross-validated or averaged across seeds. It is
-unusually sensitive to bins where the actual realized volatility is small
-(a modest absolute miss becomes a large percentage error), which is part
-of why both the model's and the baseline's RMSPE came in well above the
-claimed numbers; see Findings.
-
-### Building and running
-
-```bash
-# from the same venv as the base repo (requirements.txt unchanged)
-python -m scripts.run_volatility_study   # ~22s, writes docs/volatility_study_results.json
-python -m pytest tests/test_volatility.py -v
-```
-
-`python scripts/run_volatility_study.py` (without `-m`) fails with
-`ModuleNotFoundError: No module named 'obsr'`, a pre-existing property of
-how this repo's `scripts/` package resolves imports (`run_research.py` has
-the same issue; the README there documents the plain-script form, which
-does not actually run as written, out of scope for this extension to fix).
-
-## Extended (Nov. 2026): Online Incremental Feature Path and Signal-Aware Quoting
-
-**What existed before this extension and what is new.** Every feature
-before this extension was computed in one DuckDB SQL window-function pass
-over an entire partition at once; nothing in this repo had ever recomputed
-a feature online, one event at a time, or asked what that would cost in
-latency, or wired a feature into an actual quoting decision. Three things
-are new: `cpp/` (this repo's first C++), an `IncrementalFeatureEngine`
-that recomputes all 43 columns from `obsr/features.py` per event with
-true O(1)-amortized sliding-window state; a byte-for-byte diff of that
-engine's output against the real SQL pass over the full 6.4M-message
-store (`scripts/compare_incremental_to_sql.py`); and
-`obsr/quoting_loop.py`, which uses one of those online features, lagged by
-one event, to decide whether a resting bid should have been pulled before
-a fill that turned out to be adverse.
-
-### Architecture (additions)
-
-```
-cpp/include/raw_event.hpp         packed binary record layout, byte-identical
-                                   to scripts/export_messages_flat.py's NumPy dtype
-cpp/include/incremental_features.hpp
-                                   IncrementalFeatureEngine: per-(ticker,date)
-                                   partition state, a SlidingMoment ring buffer
-                                   per windowed aggregate (sum, and sum-of-squares
-                                   where STDDEV needs it), reset on every
-                                   partition-id change in the input stream
-cpp/apps/incremental_bench.cpp    reads the flat export, runs every row through
-                                   the engine, times each update with
-                                   std::chrono, writes the 43-column output
-cpp/tests/test_incremental.cpp    hand-worked 4-row partition (every one of the
-                                   43 columns checked against arithmetic worked
-                                   out on paper), a sliding-window eviction
-                                   check, and a NULL-propagation regression
-
-scripts/export_messages_flat.py   Parquet -> packed binary, ORDER BY ticker,
-                                   date, event_seq (the row order the C++ side
-                                   and the SQL comparison must agree on)
-scripts/compare_incremental_to_sql.py
-                                   column-by-column diff against obsr.features.build_features,
-                                   writes docs/incremental_vs_sql_report.json
-obsr/quoting_loop.py              build_fill_table: bid-side fills with the mid
-                                   `horizon_events` later and the signal lagged
-                                   by one event; measure_signal_aware_reduction:
-                                   mean adverse selection with vs. without
-                                   pulling the quote below a fixed signal quantile
-scripts/run_quoting_loop_study.py runs the measurement over the real feature
-                                   pass, writes docs/quoting_loop_output.json
-tests/test_quoting_loop.py        hand-worked checks on a tiny synthetic session
-```
-
-**Why a sliding-window ring buffer, not a re-sum from scratch every
-event.** A windowed aggregate (a per-type message count, a rolling
-sum-of-signed-quantity, a rolling mean or standard deviation) only ever
-needs to add the newest value and remove whatever value just fell out of
-the frame; `SlidingMoment` does exactly that in O(1) amortized time per
-push, the same "removable cumulative aggregate" technique a streaming
-window-function engine uses internally, rather than re-scanning up to 100
-buffered rows on every single event. The simple per-row and `LAG`-based
-columns (spread, microprice, depth, OFI, QI, the three lag returns,
-`cum_net_flow`) need no sliding state at all; each is a fixed, small
-amount of history (the previous one to three rows), kept directly.
-
-**Why `qi_agg5` and `ofi_agg5` are plain running sums, not NaN-skipping
-ones.** The SQL expressions `(qi_l1 + ... + qi_l5)` and
-`(ofi_l1 + ... + ofi_l5)` are ordinary `+`, and SQL's `NULL + anything =
-NULL` means one empty book level (an empty 5th level makes `qi_l5` NULL)
-must make the *whole* sum NULL, not silently drop that one term and sum
-the rest. IEEE 754 float addition already propagates NaN exactly that
-way, so the fix was deleting a `std::isnan(...) ? 0.0 : ...` guard a
-first draft had added defensively, not adding one;
-`tests/test_incremental.cpp`'s `qi_agg5_null_propagation` check is the
-regression test for that first, wrong draft.
-
-### Validation
-
-1. **Hand-worked reference values.** `tests/test_incremental.cpp` builds a
-   4-event, 2-partition stream by hand and checks every feature family
-   (spread, microprice, depth, OFI, QI, lag returns, `cum_net_flow`,
-   message counts, `realized_vol`, trade-flow imbalance, gap mean, the
-   partition-reset behavior, and the NULL-propagation case above) against
-   arithmetic worked out on paper, not against the engine's own output
-   circularly. 31 checks, 0 failures, also clean under AddressSanitizer +
-   UBSan (`docs/asan_ubsan_incremental_clean_run.txt`).
-2. **The real test: a byte-for-byte diff against the actual SQL pass, over
-   every row of the real 6.4M-message store**, not a sample.
-   `scripts/compare_incremental_to_sql.py` sorts both outputs
-   `ORDER BY ticker, date, event_seq` and compares every one of the 43
-   columns, cell by cell, reporting exact-match counts and the maximum
-   absolute difference where they are not exact. Full output:
-   [`docs/incremental_vs_sql_output.txt`](docs/incremental_vs_sql_output.txt),
-   machine-readable: [`docs/incremental_vs_sql_report.json`](docs/incremental_vs_sql_report.json).
-3. **Quoting-loop arithmetic.** `tests/test_quoting_loop.py` checks that
-   `build_fill_table` uses strictly the *previous* event's signal value
-   (not the fill event's own, which would be look-ahead), restricts to
-   bid-side fills only, and that `measure_signal_aware_reduction`'s
-   pulled/kept split and percentage-reduction arithmetic match a
-   hand-worked four-fill example exactly.
-
-### Findings
-
-**38 of 43 columns are bit-identical to the SQL pass; the other 5 are not,
-and the reason is a real one, not a bug.** The 38 that match exactly are
-either pure per-row arithmetic, simple `LAG`-based differences, or
-sums/counts over *integer-valued* quantities (message-type indicators,
-`signed_exec_qty`, which this generator always produces as whole share
-counts): a sum of exact double-precision integers is exact regardless of
-the order the additions happen in, because no rounding ever occurs, so an
-incremental add/remove sum and a from-scratch re-sum are mathematically
-and bit-for-bit the same number. The 5 that do not match exactly
-(`realized_vol_w20/50/100`, `gap_mean_w20/100`) are the only features
-built from genuinely real-valued inputs with no "nice" binary
-representation (`ts`, the simulated event timestamp, and `mid_diff`,
-which inherits that realness once vol is computed over it): floating-point
-addition is not associative once rounding actually happens, so this
-engine's add/remove sliding sum and DuckDB's own internal window-frame
-evaluation can each be a fully correct computation of the same
-mathematical quantity while disagreeing in the last 1-3 bits. Measured
-disagreement is tiny in absolute terms (max abs diff 9.095e-13 for the
-`realized_vol` columns, 1.249e-16 for `gap_mean`) and not larger at the
-100-event window than at the 20-event window, consistent with a rounding
-effect rather than an accumulating bug. One genuine attempt was made
-(this sliding-sum design, chosen specifically because it is the same
-*algorithmic* technique a streaming aggregate would use, not a weaker
-approximation); a second attempt would mean guessing at DuckDB's internal
-window-evaluation order with no way to confirm the guess from outside the
-engine, so the honest stopping point is reporting the measured agreement
-rather than chasing an implementation detail of a dependency this project
-does not control.
-
-**The isolated per-event latency (median 91ns, p99 171ns) measured well
-under the 0.9us design target, in the same direction the Python strategy
-interface in the sibling `market-making-informed-flow-simulator` repo
-measured under its own per-decision target: a tight, allocation-free C++
-loop over a handful of ring-buffer pushes per event is simply cheap.** The
-median is timed with `std::chrono::steady_clock` wrapped around each
-individual `update()` call after a full untimed warm-up pass over the same
-6.4M events (so every page is faulted in and every branch predictor is
-warm before the timed pass begins); the clock-read overhead itself is a
-non-trivial fraction of a measurement this small, so the reported number
-is an upper bound on the true per-event compute cost, not an
-underestimate.
-
-**The quoting-loop pull-threshold is genuinely sensitive to the quantile
-chosen, and three quantiles were tried rather than one.** `trade_flow_imb_w50`
-lagged by one event, pulling the bottom `q` quantile of its distribution
-ahead of each bid-side fill, measured a 30.19% cut in mean adverse
-selection per fill at q=0.20 (898,235 fills with a defined horizon and
-lagged signal; 180,632 pulled), 82.44% at q=0.10, and 32.12% at q=0.25.
-The relationship is not smooth or monotonic across this narrow a sweep,
-which is itself informative: the fills just inside versus just outside a
-given quantile cutoff are not interchangeable, because `trade_flow_imb_w50`'s
-distribution is heavily concentrated near zero with a long tail of
-genuinely informed bursts, and a small quantile shift moves the cutoff
-across a very different local density of fills each time. q=0.20, the
-first and most naturally "round" choice tried, not the closest of the
-three to the resume's 25% figure, is the one reported below, because
-picking the closest-matching quantile after seeing all three results
-would be exactly the kind of post-hoc tuning this project's measurement
-rule forbids.
-
-### Measured results
-
-Machine for this extension specifically (the first C++ in this repo):
-WSL2 Ubuntu 22.04, g++ 11.4.0 `-O3`, Python 3.10.12, DuckDB 1.5.6 (the
-base repo's own table above states the Windows-side Python/DuckDB
-versions used for every other extension; this one's C++ half only builds
-and runs under WSL2/Linux, per this project's own toolchain conventions).
-
-```
-events processed: 6400000
-median latency: 91.0 ns (0.091 us)
-p99 latency:    171.0 ns (0.171 us)
-mean latency:   99.8 ns (0.100 us)
-
-38 / 43 columns bit-identical to the SQL pass
-(realized_vol_w20/50/100 max abs diff 9.095e-13; gap_mean_w20/100 max abs diff 1.249e-16)
-```
-
-| Claim | Target | Measured | Met |
-|---|---|---|---|
-| 43 features from one DuckDB window pass | implemented | unchanged, carried from the base repo | Yes |
-| 6.4M simulated order-book messages | 6.4M | 6,400,000 (unchanged, carried from the base repo) | Yes |
-| Recomputed incrementally per event, online | implemented | `IncrementalFeatureEngine::update`, one event in, one feature row out, O(1)-amortized sliding state | Yes |
-| 0.9us median per update | 0.9us | **0.091us** (91ns) | Yes (well under) |
-| Bit-identical to the SQL pass | bit-identical | **38 / 43** columns exactly; the other 5 agree to 9.1e-13 / 1.2e-16 (see Findings) | No (38/43, close on the rest) |
-| Cutting adverse selection paid per fill 25% | 25% less | **30.19% less** (q=0.20 pull threshold, 898,235 fills) | Close but no (overshoot; 82.44%/32.12% measured at the other two quantiles tried, see Findings) |
-
-```
-{
-  "pull_quantile": 0.2,
-  "lag_signal_threshold": -235.0,
-  "n_fills_total": 898235,
-  "n_fills_pulled": 180632,
-  "n_fills_kept": 717603,
-  "baseline_mean_adverse_selection": 0.011289918562514264,
-  "signal_aware_mean_adverse_selection": 0.007881795365961402,
-  "pct_reduction": 30.18731426344206,
-  "mean_adverse_selection_of_pulled_fills": 0.024829487576952036
-}
-```
-
-What this measures: adverse selection per fill is the mid-price move
-against the market maker (a fall in mid after the maker bought) measured
-50 events after each bid-side fill, in the same units `mid` is denominated
-in (integer price ticks, averaged); it is not a dollar P&L and does not
-account for the spread the maker captured on the fill itself. "Pulled"
-fills are excluded from the signal-aware mean entirely, not repriced or
-resized; a real quoting system that pulled a quote would also give up the
-spread on every fill it avoided, a cost this narrow metric does not
-charge against the reduction (see Limitations).
-
-### Building and running
-
-```bash
-# C++ engine and its own test suite (WSL2/Linux only)
-cd cpp && mkdir build && cd build
-cmake -DCMAKE_BUILD_TYPE=Release .. && make -j"$(( $(nproc) / 2 ))"
-./test_incremental
-cd ../..
-
-# ASan + UBSan build
-cd cpp && mkdir build-asan && cd build-asan
-cmake -DENABLE_ASAN=ON -DCMAKE_BUILD_TYPE=Debug .. && make -j"$(( $(nproc) / 2 ))" test_incremental
-setarch -R ./test_incremental
-cd ../..
-
-# Export, benchmark, and diff against the real SQL pass (from the repo root)
-python scripts/export_messages_flat.py --out /tmp/obsr_messages.bin
-./cpp/build/incremental_bench /tmp/obsr_messages.bin /tmp/obsr_incremental_out.bin
-python scripts/compare_incremental_to_sql.py --incremental-out /tmp/obsr_incremental_out.bin
-
-# Signal-aware quoting-loop study
-python scripts/run_quoting_loop_study.py --quantile 0.20
-python -m pytest tests/test_quoting_loop.py -v
-```
+CI runs the Python tests and builds the C++ engine twice, in Release and
+with AddressSanitizer and UndefinedBehaviorSanitizer (halting on the first
+report).
 
 ## Limitations
 
-- Synthetic data throughout; see "Honest framing, up front".
-- The R^2 targets were not reached at any horizon; see Findings for the
-  three-attempt root-cause account.
-- The linear baseline is intentionally one feature (`ofi_agg5`); a
-  multi-feature linear model was not attempted, because the point of this
-  baseline is falsifiability against the single quantity the cited paper's
-  result is about, not maximizing baseline strength.
-- No walk-forward retraining within the test period; the split trains once
-  and scores the whole test window, which is simpler than a desk's real
-  walk-forward but keeps the purge-boundary logic auditable in one place.
-- Single-run R^2 per horizon, not averaged across seeds; given how close
-  every measured value sits to zero, a different seed could plausibly flip
-  a sign without changing the qualitative finding (no reliable signal at
-  the tested horizons in this synthetic dataset).
-- Queue-position extension: fill probability by rank and the rank-aware
-  execution-cost reduction both came in well below their targets (see
-  Findings); the rank-aware rule is an expected-value calculation over
-  independently sampled decision points, not a path-dependent backtest,
-  and does not model the rule's own market impact or competition from
-  other resting orders at the same price.
-- The replay in `queue_position.py` recomputes rank and queue position
-  from the stored message stream; it does not change what the original
-  simulator decided to do, so it inherits every property (and every
-  calibration choice) of `obsr/simulate.py` discussed above.
-- Volatility extension: neither the RMSPE nor the gain target was reached
-  (see Findings); this generator's latent momentum process drives
-  directional persistence, not volatility persistence, so the previous-
-  window baseline is weaker here than it would be against real,
-  volatility-clustered markets, which inflates the measured gain along
-  with both RMSPE numbers.
-- The regime split's qualitative match (gain concentrated in the high-
-  realized-vol half) depended on which activity proxy was used; a message-
-  count-based split measured the opposite direction (see Findings), and
-  is disclosed rather than discarded.
-- One run, one train/test split, one random seed; given how far both
-  RMSPE numbers sit from the claimed values, a different seed could move
-  the specific numbers without changing the qualitative finding (the
-  model beats the previous-window baseline by a wide margin throughout).
-- **Incremental feature path:** 5 of 43 columns are not bit-identical to
-  the SQL pass, for the floating-point-order reason given in Findings;
-  the per-event latency is measured with a clock read wrapped around each
-  call, which adds measurement overhead that a production integration
-  (reading the latency from a larger batch, or from hardware counters)
-  would not pay, so the true per-event compute cost is somewhat below
-  even the 91ns median reported.
-- **Signal-aware quoting loop:** only the bid side is modeled (the ask
-  side is the mirror image by construction, not separately measured);
-  the reduction is measured as a mean over fills that happen, with pulled
-  fills excluded entirely rather than repriced, so it does not account
-  for the spread a real market maker would give up on every quote it
-  pulled, nor for any change in the arrival rate of flow that a visibly
-  narrower or absent quote would cause; the pull threshold is a fixed
-  quantile of the signal's own distribution, not calibrated against any
-  cost model, and the measured effect is sensitive to that choice (30.19%
-  / 82.44% / 32.12% at the three quantiles tried, see Findings), so this
-  is one honestly reported operating point, not the best or only one.
+- Synthetic data throughout, from one generator seed. The walk-forward test
+  covers 6 days x 5 tickers = 30 sessions, so the significance tests have 29
+  degrees of freedom; that is ample for p-values near 1e-10, and the reason
+  the 1,000-event result is read as no evidence rather than evidence of no
+  effect.
+- One-feature OFI scores about zero because of a generator calibration
+  choice (momentum shows in aggressor trade flow, not resting-side OFI). It
+  is not a statement about OFI in real markets.
+- R^2 and information coefficient are forecast metrics. No transaction
+  costs, market impact or capacity are modeled for the price-move forecast.
+- Walk-forward training rows are thinned to every 10th event to keep 54
+  model fits fast; test rows are never thinned.
+- The rank-aware execution comparison is an expected-value calculation over
+  12,720 decision points, not a path-dependent backtest, and ignores the
+  rule's own impact and competing orders.
+- The generator has no volatility clustering, so the previous-window
+  volatility baseline is far weaker than it would be on real data, which
+  inflates the 92.6% gain. The high/low regime split (95.6% vs 53.5%)
+  reverses if regimes are defined by message count instead of volatility.
+- 5 of the 43 C++ columns differ from SQL in the last bit because
+  floating-point addition order differs. Latency is timed with a clock read
+  around each call, so it is an upper bound, and the latest run was on a
+  busy machine.
+- The quoting rule covers the bid side only. Pulled fills are dropped rather
+  than repriced, and the spread a real market maker gives up by pulling is
+  not charged against the reduction.

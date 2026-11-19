@@ -15,3 +15,5 @@ cpp/build/
 cpp/build-asan/
 *.o
 *.obj
+
+repro_out/

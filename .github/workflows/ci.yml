@@ -1,0 +1,37 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  python:
+    name: Python tests (book oracle, SQL features, labels and leakage, statistics)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - run: python -m pytest tests -q
+
+  cpp:
+    name: C++ incremental feature engine (Release and ASan/UBSan)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Release build and tests
+        run: |
+          cmake -S cpp -B cpp/build -DCMAKE_BUILD_TYPE=Release
+          cmake --build cpp/build -j4
+          ./cpp/build/test_incremental
+      - name: ASan + UBSan build and tests
+        env:
+          ASAN_OPTIONS: halt_on_error=1
+          UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+        run: |
+          cmake -S cpp -B cpp/build-asan -DENABLE_ASAN=ON -DCMAKE_BUILD_TYPE=Debug
+          cmake --build cpp/build-asan -j4
+          ./cpp/build-asan/test_incremental
